@@ -26,5 +26,10 @@ export default async ({ req, res, log, error }) => {
     return res.text("Pong");
   }
 
-  return res.json({ message: "Hello from Appwrite!" }, users);
+  return res.json({
+    motto: "Build like a team of hundreds_",
+    learn: "https://appwrite.io/docs",
+    connect: "https://appwrite.io/discord",
+    getInspired: "https://builtwith.appwrite.io",
+  });
 };
