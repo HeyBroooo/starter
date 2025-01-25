@@ -1,41 +1,59 @@
-import { Client, Users } from 'node-appwrite';
+import { Resend } from 'resend';
 
-// This Appwrite function will be executed every time your function is triggered
-export default async ({ req, res, log, error }) => {
-  // Initialize Appwrite SDK client
-  const client = new Client()
-    .setEndpoint(process.env.APPWRITE_FUNCTION_API_ENDPOINT) // Appwrite API endpoint
-    .setProject(process.env.APPWRITE_FUNCTION_PROJECT_ID)    // Appwrite project ID
-    .setKey(req.headers['x-appwrite-key'] ?? '');            // Appwrite API key from headers
+// Appwrite function handler
+export default async function ({ req, res, log, error }) {
+  // Environment variables for Resend API key
+  const resendApiKey = process.env.APPWRITE_FUNCTION_RESEND_API_KEY;
 
-  const users = new Users(client);
+  if (!resendApiKey) {
+    error('Resend API key is not set in the environment variables.');
+    return res.json(
+      { success: false, message: 'Server configuration error.' },
+      500
+    );
+  }
+
+  // Extract email from request body
+  const { email } = req.body || {};
+
+  if (!email) {
+    return res.json(
+      { success: false, message: 'Recipient email is required.' },
+      400
+    );
+  }
 
   try {
-    // Fetch the list of users
-    const response = await users.list();
+    // Create a Resend client instance
+    const resend = new Resend(resendApiKey);
 
-    // Filter the list of users to include only authenticated users
-    // Here, we're assuming "emailVerification" indicates authentication status.
-    const authenticatedUsers = response.users.filter(user => user.emailVerification);
+    // Define email payload
+    const emailPayload = {
+      from: 'Your App <no-reply@devmohit.engineer>', // Replace with your verified sender
+      to: email,
+      subject: 'Welcome to Our App!',
+      html: `
+        <h1>Welcome to Our App!</h1>
+        <p>Thank you for signing up! We’re excited to have you on board.</p>
+        <p>Feel free to reach out if you have any questions.</p>
+      `,
+    };
 
-    // Log the total number of authenticated users
-    log(`Total authenticated users: ${authenticatedUsers.length}`);
+    // Send the email using Resend
+    const response = await resend.emails.send(emailPayload);
 
-    // Respond with the filtered user list in JSON format
+    log(`Email sent successfully: ${response.id}`);
+
     return res.json({
-      total: authenticatedUsers.length,
-      users: authenticatedUsers.map(user => ({
-        id: user.$id,
-        name: user.name,
-        email: user.email,
-        emailVerification: user.emailVerification
-      }))
+      success: true,
+      message: 'Welcome email sent successfully.',
+      emailId: response.id, // Include email ID for debugging
     });
   } catch (err) {
-    // Log error to Appwrite console
-    error("Could not fetch users: " + err.message);
-
-    // Respond with an error status
-    return res.json({ error: "Failed to fetch users", message: err.message }, 500);
+    error('Error sending email: ' + err.message);
+    return res.json(
+      { success: false, message: 'Failed to send email.', error: err.message },
+      500
+    );
   }
-};
+}
