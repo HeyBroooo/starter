@@ -26,5 +26,5 @@ export default async ({ req, res, log, error }) => {
     return res.text("Pong");
   }
 
-  return res(users);
+  return res(text("Hello, world!"));
 };
