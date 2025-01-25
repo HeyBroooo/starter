@@ -18,5 +18,13 @@ export default async ({ req, res, log, error }) => {
   } catch(err) {
     error("Could not list users: " + err.message);
   }
-   
+
+  // The req object contains the request data
+  if (req.path === "/ping") {
+    // Use res object to respond with text(), json(), or binary()
+    // Don't forget to return a response!
+    return res.text("Pong");
+  }
+
+  return res.json({ message: "Hello from Appwrite!" }, users);
 };
