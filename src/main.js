@@ -1,59 +1,75 @@
-import { Resend } from 'resend';
+const axios = require("axios");
 
-// Appwrite function handler
-export default async function ({ req, res, log, error }) {
-  // Environment variables for Resend API key
-  const resendApiKey = process.env.APPWRITE_FUNCTION_RESEND_API_KEY;
-
-  if (!resendApiKey) {
-    error('Resend API key is not set in the environment variables.');
-    return res.json(
-      { success: false, message: 'Server configuration error.' },
-      500
-    );
-  }
-
-  // Extract email from request body
-  const { email } = req.body || {};
-
-  if (!email) {
-    return res.json(
-      { success: false, message: 'Recipient email is required.' },
-      400
-    );
-  }
-
+module.exports = async function (req, res) {
   try {
-    // Create a Resend client instance
-    const resend = new Resend(resendApiKey);
+    // Parse the incoming request body
+    const payload = JSON.parse(req.body || "{}");
 
-    // Define email payload
-    const emailPayload = {
-      from: 'Your App <no-reply@devmohit.engineer>', // Replace with your verified sender
-      to: email,
-      subject: 'Welcome to Our App!',
-      html: `
-        <h1>Welcome to Our App!</h1>
-        <p>Thank you for signing up! We’re excited to have you on board.</p>
-        <p>Feel free to reach out if you have any questions.</p>
-      `,
+    // Extract the phone number from the payload
+    const { phoneNumber } = payload;
+
+    // Validate the phone number
+    if (!phoneNumber) {
+      return res.json({
+        success: false,
+        message: "Phone number is required.",
+      });
+    }
+
+    // Generate a unique 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+
+    // WhatsApp Business API access token (store securely, e.g., as an environment variable in Appwrite)
+    const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
+    console.log("accessToken", accessToken);
+
+    // Define the API URL for sending messages
+    const whatsappApiUrl = "https://graph.facebook.com/v21.0/535724639627729/messages";
+
+    // Define the template payload for sending the OTP
+    const templatePayload = {
+      messaging_product: "whatsapp",
+      to: phoneNumber,
+      type: "template",
+      template: {
+        name: "otp", // Replace with the actual template name from your WhatsApp account
+        language: { code: "en_US" },
+        components: [
+          {
+            type: "body",
+            parameters: [
+              {
+                type: "text",
+                text: otp, // The dynamically generated OTP
+              },
+            ],
+          },
+        ],
+      },
     };
 
-    // Send the email using Resend
-    const response = await resend.emails.send(emailPayload);
+    // Send the OTP via the WhatsApp Business API
+    const response = await axios.post(whatsappApiUrl, templatePayload, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+    });
 
-    log(`Email sent successfully: ${response.id}`);
-
+    // Respond with success
     return res.json({
       success: true,
-      message: 'Welcome email sent successfully.',
-      emailId: response.id, // Include email ID for debugging
+      message: "OTP sent successfully!",
+      otp: otp, // Optionally return the OTP for logging or testing (remove in production)
+      data: response.data,
     });
-  } catch (err) {
-    error('Error sending email: ' + err.message);
-    return res.json(
-      { success: false, message: 'Failed to send email.', error: err.message },
-      500
-    );
+  } catch (error) {
+    // Handle errors
+    console.error("Error sending OTP:", error);
+    return res.json({
+      success: false,
+      message: "Failed to send OTP.",
+      error: error.response ? error.response.data : error.message,
+    });
   }
-}
+};
