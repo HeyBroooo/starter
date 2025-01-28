@@ -1,4 +1,4 @@
-import { post } from "axios";
+import  post  from "axios";
 
 export default async function (req, res) {
   try {
