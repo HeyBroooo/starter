@@ -73,19 +73,7 @@ export default async function (req, res) {
         message: "OTP sent successfully!",
         data: response.data,
       });
-    }
-    ).catch((error) => {
-      // Log error details for debugging
-      console.error("Error sending OTP:", error);
-
-      // Return error response with proper status code
-      return res.status(500).json({
-        success: false,
-        message: "Failed to send OTP.",
-        error: error.response ? error.response.data : error.message,
-      });
-    }
-    );
+    });
 
   
   } catch (error) {
