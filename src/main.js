@@ -1,4 +1,4 @@
-import  post  from "axios";
+import  axios  from "axios";
 
 export default async function (req, res) {
   try {
@@ -54,19 +54,40 @@ export default async function (req, res) {
     };
 
     // Send the OTP via WhatsApp API
-    const response = await post(whatsappApiUrl, templatePayload, {
+    // const response = await (whatsappApiUrl, templatePayload, {
+    //   headers: {
+    //     Authorization: `Bearer ${accessToken}`,
+    //     "Content-Type": "application/json",
+    //   },
+    // });
+
+   await axios.post(whatsappApiUrl, templatePayload, {
       headers: {
         Authorization: `Bearer ${accessToken}`,
         "Content-Type": "application/json",
       },
-    });
+    }).then((response) => {
+      // Return success response
+      return res.json({
+        success: true,
+        message: "OTP sent successfully!",
+        data: response.data,
+      });
+    }
+    ).catch((error) => {
+      // Log error details for debugging
+      console.error("Error sending OTP:", error);
 
-    // Return success response
-    return res.json({
-      success: true,
-      message: "OTP sent successfully!",
-      data: response.data,
-    });
+      // Return error response with proper status code
+      return res.status(500).json({
+        success: false,
+        message: "Failed to send OTP.",
+        error: error.response ? error.response.data : error.message,
+      });
+    }
+    );
+
+  
   } catch (error) {
     // Log error details for debugging
     console.error("Error sending OTP:", error);
@@ -75,7 +96,7 @@ export default async function (req, res) {
     return res.status(500).json({
       success: false,
       message: "Failed to send OTP.",
-      error: error.response ? error.response.data : error.message,
+      error: error.message,
     });
   }
 };
