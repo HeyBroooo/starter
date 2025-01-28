@@ -16,17 +16,13 @@ module.exports = async function (req, res) {
       });
     }
 
-    // Generate a unique 6-digit OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
-    // WhatsApp Business API access token (store securely, e.g., as an environment variable in Appwrite)
     const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
     console.log("accessToken", accessToken);
 
-    // Define the API URL for sending messages
     const whatsappApiUrl = "https://graph.facebook.com/v21.0/535724639627729/messages";
 
-    // Define the template payload for sending the OTP
     const templatePayload = {
       messaging_product: "whatsapp",
       to: phoneNumber,
@@ -48,15 +44,13 @@ module.exports = async function (req, res) {
       },
     };
 
-    // Send the OTP via the WhatsApp Business API
-    const response = await axios.post(whatsappApiUrl, templatePayload, {
+          const response = await axios.post(whatsappApiUrl, templatePayload, {
       headers: {
         Authorization: `Bearer ${accessToken}`,
         "Content-Type": "application/json",
       },
     });
 
-    // Respond with success
     return res.json({
       success: true,
       message: "OTP sent successfully!",
