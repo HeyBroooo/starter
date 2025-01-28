@@ -1,6 +1,6 @@
-const axios = require("axios");
+import { post } from "axios";
 
-module.exports = async function (req, res) {
+export default async function (req, res) {
   try {
     // Parse the payload from the request body
     const payload = JSON.parse(req.body || "{}");
@@ -54,7 +54,7 @@ module.exports = async function (req, res) {
     };
 
     // Send the OTP via WhatsApp API
-    const response = await axios.post(whatsappApiUrl, templatePayload, {
+    const response = await post(whatsappApiUrl, templatePayload, {
       headers: {
         Authorization: `Bearer ${accessToken}`,
         "Content-Type": "application/json",
