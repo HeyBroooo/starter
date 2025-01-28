@@ -2,13 +2,10 @@ const axios = require("axios");
 
 module.exports = async function (req, res) {
   try {
-    // Parse the incoming request body
     const payload = JSON.parse(req.body || "{}");
 
-    // Extract the phone number from the payload
     const { phoneNumber } = payload;
 
-    // Validate the phone number
     if (!phoneNumber) {
       return res.json({
         success: false,
