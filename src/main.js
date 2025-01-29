@@ -1,10 +1,9 @@
-import axios from 'axios';
+import twilio from 'twilio';
 
 export default async function({ req, res }) {
   try {
     const payload = req.body;
     
-    // Extract and validate phone number
     const { phoneNumber } = payload;
     if (!phoneNumber || typeof phoneNumber !== 'string') {
       return res.json({
@@ -13,13 +12,11 @@ export default async function({ req, res }) {
       }, 400);
     }
 
-    // Format Indian phone number
     let formattedPhone = phoneNumber.replace(/\s+/g, '').replace(/^0+/, '');
     if (formattedPhone.startsWith('+91')) {
       formattedPhone = formattedPhone.substring(3);
     }
     
-    // Validate Indian mobile number
     const indianPhoneRegex = /^[6-9]\d{9}$/;
     if (!indianPhoneRegex.test(formattedPhone)) {
       return res.json({
@@ -30,10 +27,8 @@ export default async function({ req, res }) {
 
     formattedPhone = `+91${formattedPhone}`;
 
-    // Generate 6-digit OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
-    // Get time-based greeting
     const getGreeting = () => {
       const hour = new Date().getHours();
       if (hour < 12) return "Good morning";
@@ -41,16 +36,17 @@ export default async function({ req, res }) {
       return "Good evening";
     };
 
-    // Format OTP message with greeting
     const greeting = getGreeting();
     const otpMessage = `${greeting}! Your OTP is ${otp}. This code will expire in 10 minutes. Please do not share this OTP with anyone.`;
 
-    // Get environment variables
-    const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
-    const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+    const accountSid = process.env.TWILIO_ACCOUNT_SID;
+    const authToken = process.env.TWILIO_AUTH_TOKEN;
+    const twilioPhone = process.env.TWILIO_PHONE_NUMBER;
 
-    if (!accessToken || !phoneNumberId) {
-      const missingVar = !accessToken ? 'WHATSAPP_ACCESS_TOKEN' : 'WHATSAPP_PHONE_NUMBER_ID';
+    if (!accountSid || !authToken || !twilioPhone) {
+      const missingVar = !accountSid ? 'TWILIO_ACCOUNT_SID' : 
+                        !authToken ? 'TWILIO_AUTH_TOKEN' : 
+                        'TWILIO_PHONE_NUMBER';
       console.error(`Missing environment variable: ${missingVar}`);
       return res.json({
         success: false,
@@ -58,81 +54,64 @@ export default async function({ req, res }) {
       }, 500);
     }
 
-    // WhatsApp API endpoint
-    const whatsappApiUrl = `https://graph.facebook.com/v17.0/${phoneNumberId}/messages`;
+    const client = twilio(accountSid, authToken);
 
-    // Construct message payload for direct message
-    const messagePayload = {
-      messaging_product: "whatsapp",
-      recipient_type: "individual",
+    console.log('Attempting to send SMS', {
       to: formattedPhone,
-      type: "text",
-      text: {
-        preview_url: false,
-        body: otpMessage
-      }
-    };
-
-    // Log attempt
-    console.log('Attempting to send WhatsApp message', {
-      to: formattedPhone,
-      messageType: 'direct'
+      from: twilioPhone
     });
 
-    // Send message
-    const response = await axios({
-      method: 'POST',
-      url: whatsappApiUrl,
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Content-Type': 'application/json'
-      },
-      data: messagePayload,
-      timeout: 10000 // 10 second timeout
+    const message = await client.messages.create({
+      body: otpMessage,
+      from: twilioPhone,
+      to: formattedPhone
     });
 
-    // Verify response
-    if (!response.data || !response.data.messages || !response.data.messages[0]) {
-      throw new Error('Invalid response from WhatsApp API');
-    }
-
-    // Log success
     console.log('OTP sent successfully', {
       phoneNumber: formattedPhone,
-      messageId: response.data.messages[0].id
+      messageId: message.sid
     });
 
-    // Return success
     return res.json({
       success: true,
       message: "OTP sent successfully",
       data: {
-        messageId: response.data.messages[0].id
+        messageId: message.sid
       }
     }, 200);
 
   } catch (error) {
-    // Enhanced error logging
     console.error('Failed to send OTP', {
       error: error.message,
       stack: error.stack,
-      response: error.response?.data,
-      status: error.response?.status
+      code: error.code
     });
 
-    // Better error handling with specific messages
     let errorMessage = "Failed to send OTP";
     let statusCode = 500;
 
-    if (error.code === 'ECONNABORTED') {
-      errorMessage = "Request timed out while sending OTP";
-      statusCode = 408;
-    } else if (error.response?.data?.error) {
-      errorMessage = `WhatsApp API Error: ${error.response.data.error.message}`;
-      statusCode = error.response.status;
-    } else if (!error.response) {
-      errorMessage = "Network error while sending OTP";
-      statusCode = 503;
+    if (error.code) {
+      switch (error.code) {
+        case 20003:
+          errorMessage = "Authentication failed with Twilio";
+          statusCode = 401;
+          break;
+        case 21211: 
+          errorMessage = "Invalid phone number format";
+          statusCode = 400;
+          break;
+        case 21608: 
+          errorMessage = "Service temporarily unavailable";
+          statusCode = 503;
+          break;
+        case 21614:
+          errorMessage = "The provided number is not a mobile number";
+          statusCode = 400;
+          break;
+        default:
+          errorMessage = `Twilio Error: ${error.message}`;
+          statusCode = error.status || 500;
+      }
     }
 
     return res.json({
