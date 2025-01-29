@@ -1,6 +1,5 @@
 import axios from 'axios';
 
-// Appwrite function for sending OTP via WhatsApp
 export default async function({ req, res, log }) {
   try {
     // Parse the request body
@@ -51,15 +50,16 @@ export default async function({ req, res, log }) {
     // WhatsApp Business API endpoint
     const whatsappApiUrl = `https://graph.facebook.com/v17.0/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`;
 
-    // Construct the message payload
+    // Construct the message payload with proper template structure
     const messagePayload = {
       messaging_product: "whatsapp",
+      recipient_type: "individual",
       to: formattedPhone,
       type: "template",
       template: {
-        name: "otp", // Your template name as configured in WhatsApp Business
+        name: "verification_code",  // Make sure this matches your template name exactly
         language: {
-          code: "en_US"
+          code: "en"
         },
         components: [
           {
@@ -86,10 +86,11 @@ export default async function({ req, res, log }) {
       data: messagePayload
     });
 
-    // Log success for monitoring
-    log.info('OTP sent successfully', {
+    // Store OTP for verification (you might want to use a database or cache)
+    // This is just an example - implement secure storage in production
+    log.info('OTP generated:', {
       phoneNumber: formattedPhone,
-      messageId: response.data.messages?.[0]?.id
+      otp: otp
     });
 
     // Return success response
@@ -112,9 +113,8 @@ export default async function({ req, res, log }) {
     let errorMessage = "Failed to send OTP";
     let statusCode = 500;
 
-    if (error.response) {
-      // Handle WhatsApp API errors
-      errorMessage = error.response.data?.error?.message || errorMessage;
+    if (error.response?.data?.error) {
+      errorMessage = error.response.data.error.message;
       statusCode = error.response.status;
     }
 
