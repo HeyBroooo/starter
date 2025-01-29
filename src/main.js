@@ -15,14 +15,25 @@ export default async function({ req, res, log }) {
       }, 400);
     }
 
-    // Format phone number (remove spaces and ensure it starts with country code)
-    const formattedPhone = phoneNumber.replace(/\s+/g, '');
-    if (!formattedPhone.startsWith('+')) {
+    // Format Indian phone number
+    let formattedPhone = phoneNumber.replace(/\s+/g, '').replace(/^0+/, '');
+    
+    // Remove any existing country code if present
+    if (formattedPhone.startsWith('+91')) {
+      formattedPhone = formattedPhone.substring(3);
+    }
+    
+    // Validate Indian mobile number (10 digits)
+    const indianPhoneRegex = /^[6-9]\d{9}$/;
+    if (!indianPhoneRegex.test(formattedPhone)) {
       return res.json({
         success: false,
-        message: "Phone number must include country code (e.g., +1234567890)",
+        message: "Please enter a valid 10-digit Indian mobile number",
       }, 400);
     }
+
+    // Add +91 prefix
+    formattedPhone = `+91${formattedPhone}`;
 
     // Generate 6-digit OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
@@ -92,11 +103,10 @@ export default async function({ req, res, log }) {
 
   } catch (error) {
     // Log detailed error for debugging
-    console.error('Failed to send OTP', {
+    log.error('Failed to send OTP', {
       error: error.message,
       stack: error.stack
     });
-    
 
     // Determine appropriate error message and status code
     let errorMessage = "Failed to send OTP";
