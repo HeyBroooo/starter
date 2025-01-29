@@ -1,16 +1,16 @@
 import axios from 'axios';
 
-export default async function({ req, res, context }) {
+export default async function({ req, res }) {
   try {
-    // Parse the request body
-    const payload = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+    // Parse the request body - Appwrite already parses JSON, so we can simplify this
+    const payload = req.body;
     
     // Extract and validate phone number
     const { phoneNumber } = payload;
     if (!phoneNumber || typeof phoneNumber !== 'string') {
       return res.json({
         success: false,
-        message: "Valid phone number is required.",
+        message: "Valid phone number is required"
       }, 400);
     }
 
@@ -27,7 +27,7 @@ export default async function({ req, res, context }) {
     if (!indianPhoneRegex.test(formattedPhone)) {
       return res.json({
         success: false,
-        message: "Please enter a valid 10-digit Indian mobile number",
+        message: "Please enter a valid 10-digit Indian mobile number"
       }, 400);
     }
 
@@ -40,28 +40,28 @@ export default async function({ req, res, context }) {
     // Get WhatsApp access token from environment variables
     const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
     if (!accessToken) {
-      context.error('WhatsApp access token is missing');
+      console.error('WhatsApp access token is missing');
       return res.json({
         success: false,
-        message: "Server configuration error: Missing WhatsApp access token",
+        message: "Server configuration error: Missing WhatsApp access token"
       }, 500);
     }
 
     // Get WhatsApp Phone Number ID from environment variables
     const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
     if (!phoneNumberId) {
-      context.error('WhatsApp Phone Number ID is missing');
+      console.error('WhatsApp Phone Number ID is missing');
       return res.json({
         success: false,
-        message: "Server configuration error: Missing WhatsApp Phone Number ID",
+        message: "Server configuration error: Missing WhatsApp Phone Number ID"
       }, 500);
     }
 
-    // WhatsApp Business API endpoint (updated to v17.0)
+    // WhatsApp Business API endpoint (v17.0)
     const whatsappApiUrl = `https://graph.facebook.com/v17.0/${phoneNumberId}/messages`;
 
     // Log the API request details
-    context.log('Sending WhatsApp message', {
+    console.log('Sending WhatsApp message', {
       url: whatsappApiUrl,
       to: formattedPhone,
       template: 'otp'
@@ -103,7 +103,7 @@ export default async function({ req, res, context }) {
     });
 
     // Log success
-    context.log('OTP sent successfully', {
+    console.log('OTP sent successfully', {
       phoneNumber: formattedPhone,
       messageId: response.data.messages?.[0]?.id
     });
@@ -119,7 +119,7 @@ export default async function({ req, res, context }) {
 
   } catch (error) {
     // Log error details
-    context.error('Failed to send OTP', {
+    console.error('Failed to send OTP', {
       error: error.message,
       stack: error.stack,
       response: error.response?.data
