@@ -2,7 +2,6 @@ import axios from 'axios';
 
 export default async function({ req, res }) {
   try {
-    // Parse the request body - Appwrite already parses JSON, so we can simplify this
     const payload = req.body;
     
     // Extract and validate phone number
@@ -16,13 +15,11 @@ export default async function({ req, res }) {
 
     // Format Indian phone number
     let formattedPhone = phoneNumber.replace(/\s+/g, '').replace(/^0+/, '');
-    
-    // Remove any existing country code if present
     if (formattedPhone.startsWith('+91')) {
       formattedPhone = formattedPhone.substring(3);
     }
     
-    // Validate Indian mobile number (10 digits)
+    // Validate Indian mobile number
     const indianPhoneRegex = /^[6-9]\d{9}$/;
     if (!indianPhoneRegex.test(formattedPhone)) {
       return res.json({
@@ -31,67 +28,58 @@ export default async function({ req, res }) {
       }, 400);
     }
 
-    // Add +91 prefix
     formattedPhone = `+91${formattedPhone}`;
 
     // Generate 6-digit OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
-    // Get WhatsApp access token from environment variables
+    // Get time-based greeting
+    const getGreeting = () => {
+      const hour = new Date().getHours();
+      if (hour < 12) return "Good morning";
+      if (hour < 17) return "Good afternoon";
+      return "Good evening";
+    };
+
+    // Format OTP message with greeting
+    const greeting = getGreeting();
+    const otpMessage = `${greeting}! Your OTP is ${otp}. This code will expire in 10 minutes. Please do not share this OTP with anyone.`;
+
+    // Get environment variables
     const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
-    if (!accessToken) {
-      console.error('WhatsApp access token is missing');
-      return res.json({
-        success: false,
-        message: "Server configuration error: Missing WhatsApp access token"
-      }, 500);
-    }
-
-    // Get WhatsApp Phone Number ID from environment variables
     const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
-    if (!phoneNumberId) {
-      console.error('WhatsApp Phone Number ID is missing');
+
+    if (!accessToken || !phoneNumberId) {
+      const missingVar = !accessToken ? 'WHATSAPP_ACCESS_TOKEN' : 'WHATSAPP_PHONE_NUMBER_ID';
+      console.error(`Missing environment variable: ${missingVar}`);
       return res.json({
         success: false,
-        message: "Server configuration error: Missing WhatsApp Phone Number ID"
+        message: `Server configuration error: Missing ${missingVar}`
       }, 500);
     }
 
-    // WhatsApp Business API endpoint (v17.0)
+    // WhatsApp API endpoint
     const whatsappApiUrl = `https://graph.facebook.com/v17.0/${phoneNumberId}/messages`;
 
-    // Log the API request details
-    console.log('Sending WhatsApp message', {
-      url: whatsappApiUrl,
-      to: formattedPhone,
-      template: 'otp'
-    });
-
-    // Construct the message payload
+    // Construct message payload for direct message
     const messagePayload = {
       messaging_product: "whatsapp",
+      recipient_type: "individual",
       to: formattedPhone,
-      type: "template",
-      template: {
-        name: "otp",
-        language: {
-          code: "en"
-        },
-        components: [
-          {
-            type: "body",
-            parameters: [
-              {
-                type: "text",
-                text: otp
-              }
-            ]
-          }
-        ]
+      type: "text",
+      text: {
+        preview_url: false,
+        body: otpMessage
       }
     };
 
-    // Send request to WhatsApp Business API
+    // Log attempt
+    console.log('Attempting to send WhatsApp message', {
+      to: formattedPhone,
+      messageType: 'direct'
+    });
+
+    // Send message
     const response = await axios({
       method: 'POST',
       url: whatsappApiUrl,
@@ -99,39 +87,52 @@ export default async function({ req, res }) {
         'Authorization': `Bearer ${accessToken}`,
         'Content-Type': 'application/json'
       },
-      data: messagePayload
+      data: messagePayload,
+      timeout: 10000 // 10 second timeout
     });
+
+    // Verify response
+    if (!response.data || !response.data.messages || !response.data.messages[0]) {
+      throw new Error('Invalid response from WhatsApp API');
+    }
 
     // Log success
     console.log('OTP sent successfully', {
       phoneNumber: formattedPhone,
-      messageId: response.data.messages?.[0]?.id
+      messageId: response.data.messages[0].id
     });
 
-    // Return success response
+    // Return success
     return res.json({
       success: true,
       message: "OTP sent successfully",
       data: {
-        messageId: response.data.messages?.[0]?.id
+        messageId: response.data.messages[0].id
       }
     }, 200);
 
   } catch (error) {
-    // Log error details
+    // Enhanced error logging
     console.error('Failed to send OTP', {
       error: error.message,
       stack: error.stack,
-      response: error.response?.data
+      response: error.response?.data,
+      status: error.response?.status
     });
 
-    // Determine appropriate error message and status code
+    // Better error handling with specific messages
     let errorMessage = "Failed to send OTP";
     let statusCode = 500;
 
-    if (error.response?.data?.error) {
+    if (error.code === 'ECONNABORTED') {
+      errorMessage = "Request timed out while sending OTP";
+      statusCode = 408;
+    } else if (error.response?.data?.error) {
       errorMessage = `WhatsApp API Error: ${error.response.data.error.message}`;
       statusCode = error.response.status;
+    } else if (!error.response) {
+      errorMessage = "Network error while sending OTP";
+      statusCode = 503;
     }
 
     return res.json({
