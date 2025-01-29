@@ -57,7 +57,7 @@ export default async function({ req, res, log }) {
       to: formattedPhone,
       type: "template",
       template: {
-        name: "verification_code",  // Make sure this matches your template name exactly
+        name: "otp",  // Make sure this matches your template name exactly
         language: {
           code: "en"
         },
