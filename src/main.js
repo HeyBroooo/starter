@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-export default async function({ req, res, log }) {
+export default async function({ req, res, context }) {
   try {
     // Parse the request body
     const payload = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
@@ -40,24 +40,40 @@ export default async function({ req, res, log }) {
     // Get WhatsApp access token from environment variables
     const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
     if (!accessToken) {
-      log.error('WhatsApp access token is missing');
+      context.error('WhatsApp access token is missing');
       return res.json({
         success: false,
         message: "Server configuration error: Missing WhatsApp access token",
       }, 500);
     }
 
-    // WhatsApp Business API endpoint
-    const whatsappApiUrl = `https://graph.facebook.com/v17.0/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`;
+    // Get WhatsApp Phone Number ID from environment variables
+    const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+    if (!phoneNumberId) {
+      context.error('WhatsApp Phone Number ID is missing');
+      return res.json({
+        success: false,
+        message: "Server configuration error: Missing WhatsApp Phone Number ID",
+      }, 500);
+    }
 
-    // Construct the message payload with proper template structure
+    // WhatsApp Business API endpoint (updated to v17.0)
+    const whatsappApiUrl = `https://graph.facebook.com/v17.0/${phoneNumberId}/messages`;
+
+    // Log the API request details
+    context.log('Sending WhatsApp message', {
+      url: whatsappApiUrl,
+      to: formattedPhone,
+      template: 'otp'
+    });
+
+    // Construct the message payload
     const messagePayload = {
       messaging_product: "whatsapp",
-      recipient_type: "individual",
       to: formattedPhone,
       type: "template",
       template: {
-        name: "otp",  // Make sure this matches your template name exactly
+        name: "otp",
         language: {
           code: "en"
         },
@@ -86,11 +102,10 @@ export default async function({ req, res, log }) {
       data: messagePayload
     });
 
-    // Store OTP for verification (you might want to use a database or cache)
-    // This is just an example - implement secure storage in production
-    log.info('OTP generated:', {
+    // Log success
+    context.log('OTP sent successfully', {
       phoneNumber: formattedPhone,
-      otp: otp
+      messageId: response.data.messages?.[0]?.id
     });
 
     // Return success response
@@ -103,19 +118,19 @@ export default async function({ req, res, log }) {
     }, 200);
 
   } catch (error) {
-    // Log detailed error for debugging
-    console.error('Failed to send OTP', {
+    // Log error details
+    context.error('Failed to send OTP', {
       error: error.message,
-      stack: error.stack
+      stack: error.stack,
+      response: error.response?.data
     });
-    
 
     // Determine appropriate error message and status code
     let errorMessage = "Failed to send OTP";
     let statusCode = 500;
 
     if (error.response?.data?.error) {
-      errorMessage = error.response.data.error.message;
+      errorMessage = `WhatsApp API Error: ${error.response.data.error.message}`;
       statusCode = error.response.status;
     }
 
