@@ -104,10 +104,11 @@ export default async function({ req, res, log }) {
 
   } catch (error) {
     // Log detailed error for debugging
-    log.error('Failed to send OTP', {
+    console.error('Failed to send OTP', {
       error: error.message,
       stack: error.stack
     });
+    
 
     // Determine appropriate error message and status code
     let errorMessage = "Failed to send OTP";
